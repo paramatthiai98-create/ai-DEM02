@@ -21,21 +21,12 @@ import streamlit.components.v1 as components
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
-import streamlit as st
-
-# ปุ่มเรียก sidebar กลับ
-import streamlit as st
-import streamlit.components.v1 as components
-
-if st.button("⚙️ เปิดเมนูตั้งค่า"):
-    components.html("""
-    <script>
-    const button = window.parent.document.querySelector('[data-testid="collapsedControl"]');
-    if (button) {
-        button.click();
-    }
-    </script>
-    """, height=0)
+st.set_page_config(
+    page_title="RehabAI · Recovery Intelligence",
+    page_icon="🏥",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
