@@ -24,12 +24,18 @@ import streamlit.components.v1 as components
 import streamlit as st
 
 # ปุ่มเรียก sidebar กลับ
-if st.button("⚙️ เปิดเมนูตั้งค่า"):
-    st.session_state.show_sidebar = True
+import streamlit as st
+import streamlit.components.v1 as components
 
-# บังคับเปิด sidebar ถ้ากดปุ่ม
-if "show_sidebar" in st.session_state and st.session_state.show_sidebar:
-    st.set_page_config(initial_sidebar_state="expanded")
+if st.button("⚙️ เปิดเมนูตั้งค่า"):
+    components.html("""
+    <script>
+    const button = window.parent.document.querySelector('[data-testid="collapsedControl"]');
+    if (button) {
+        button.click();
+    }
+    </script>
+    """, height=0)
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
