@@ -21,13 +21,15 @@ import streamlit.components.v1 as components
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="RehabAI · Recovery Intelligence",
-    page_icon="🏥",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+import streamlit as st
 
+# ปุ่มเรียก sidebar กลับ
+if st.button("⚙️ เปิดเมนูตั้งค่า"):
+    st.session_state.show_sidebar = True
+
+# บังคับเปิด sidebar ถ้ากดปุ่ม
+if "show_sidebar" in st.session_state and st.session_state.show_sidebar:
+    st.set_page_config(initial_sidebar_state="expanded")
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
