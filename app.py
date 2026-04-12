@@ -18,6 +18,15 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
+if st.button("⚙️ เปิดเมนูตั้งค่า"):
+    components.html("""
+    <script>
+    const btn = window.parent.document.querySelector('[data-testid="collapsedControl"]');
+    if (btn) {
+        btn.click();
+    }
+    </script>
+    """, height=0)
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
