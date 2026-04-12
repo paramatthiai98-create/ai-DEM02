@@ -21,10 +21,9 @@ import streamlit.components.v1 as components
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="RehabAI · Recovery Intelligence",
-    page_icon="🏥",
+    page_title="RehabAI",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded"
 )
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
