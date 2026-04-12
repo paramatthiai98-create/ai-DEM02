@@ -18,28 +18,6 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.markdown("""
-<style>
-.sidebar-btn {
-    position: fixed;
-    top: 80px;
-    left: 20px;
-    z-index: 999;
-}
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown('<div class="sidebar-btn">', unsafe_allow_html=True)
-
-if st.button("⚙️ ตั้งค่า"):
-    components.html("""
-    <script>
-    const btn = window.parent.document.querySelector('[data-testid="collapsedControl"]');
-    if (btn) btn.click();
-    </script>
-    """, height=0)
-
-st.markdown('</div>', unsafe_allow_html=True)
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
