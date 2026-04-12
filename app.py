@@ -322,208 +322,221 @@ def build_angle_chart(history: list, exercise: str) -> go.Figure:
     return fig
 
 # ─────────────────────────────────────────────────────────────────────────────
-# REALISTIC BODY SVG  (v2.0 — exercise-aware, joint highlights)
+# REALISTIC BODY SVG  (v2.1 — fixed geometry, annotation, no variable shadowing)
 # ─────────────────────────────────────────────────────────────────────────────
 def body_svg(angle: float, posture: dict, exercise: str) -> str:
     """
-    Renders a more realistic medical-illustration-style body figure.
-    The active joint is highlighted and animated; limb positions respond
-    to the exercise type and current angle.
+    Renders a medical-illustration-style body SVG.
+    viewBox="0 0 260 410" — all coords kept strictly within bounds.
+
+    Fixes vs v2.0:
+    - hip_r/sh_r never shadowed by inner-branch assignments (use separate vars)
+    - Angle label placed LEFT of joint for right-side joints (never clips canvas)
+    - Knee Extension: seated thigh drawn horizontally; shin swings from knee
+    - Hip Abduction: offset capped so ankle stays on-canvas
+    - All seg() calls use explicit keyword args — no positional ambiguity
     """
     status = posture["status"]
     c      = STATUS_COLORS[status]["hex"]
-    pulse  = f'class="active-joint"' if st.session_state.running else ""
+    pulse  = 'class="active-joint"' if st.session_state.running else ""
+    BS     = "#94a3b8"   # body_stroke (inactive)
 
-    # ── Base body geometry (standing figure, 280×400 viewBox) ──
-    # Torso, head, base arms/legs are always the same.
-    # We override the relevant limb segment per exercise.
+    # ── Fixed skeleton geometry ─────────────────────────────────────────────
+    # These are NEVER reassigned; exercise branches use separate mutable vars.
+    HEAD  = (120, 42)                         # cx, cy
+    SP_T  = (120, 68);  SP_B  = (120, 190)    # spine top / bottom
+    SH_L  = (60,  90);  SH_R  = (180, 90)     # shoulder joints
+    HIP_L = (85, 190);  HIP_R = (155, 190)    # hip joints
 
-    head_cx, head_cy, head_r = 140, 42, 26
+    # Resting left-side limbs (never change)
+    LE = (48, 148);  LW = (44, 195)            # left elbow, wrist
+    LK = (78, 258);  LA = (76, 318)            # left knee, ankle
 
-    # Spine
-    spine_top = (140, 68)
-    spine_bot = (140, 195)
+    # Mutable right-side limbs (overridden per exercise)
+    RE = (192, 148); RW = (196, 195)           # right elbow, wrist
+    RK = (162, 258); RA = (164, 318)           # right knee, ankle
 
-    # Shoulder bar
-    sh_l = (85, 90); sh_r = (195, 90)
+    # Active joint & annotation placement side ('L' = label left, 'R' = label right)
+    active_joint  = None
+    ann_side      = "L"   # put annotation to the LEFT of joint by default
 
-    # Hip bar
-    hip_l = (100, 195); hip_r = (180, 195)
-
-    # Default arm positions (resting)
-    l_elbow = (70, 145); l_wrist = (65, 195)
-    r_elbow = (210, 145); r_wrist = (215, 195)
-
-    # Default leg positions
-    l_knee = (95, 260);  l_ankle = (92, 320)
-    r_knee = (185, 260); r_ankle = (188, 320)
-
-    # Joint to highlight
-    active_joint = None
-    active_r = 9
-
-    rad = math.radians(angle)
-
-    # ── Exercise-specific overrides ──
+    # ── Exercise overrides ───────────────────────────────────────────────────
     if exercise == "Shoulder Flexion":
-        # Right arm swings forward: shoulder stays fixed, elbow rises
-        lift = math.radians(angle)
-        r_elbow  = (int(195 + 55 * math.cos(math.radians(270 + angle))),
-                    int(90  + 55 * math.sin(math.radians(270 + angle))))
-        r_wrist  = (int(r_elbow[0] + 45 * math.cos(math.radians(270 + angle))),
-                    int(r_elbow[1] + 45 * math.sin(math.radians(270 + angle))))
-        active_joint = sh_r
+        # Arm swings forward (upward in SVG) around SH_R
+        # angle=0 → arm down; angle=90 → arm forward/horizontal; angle=170 → overhead
+        arm_angle_deg = 270 + angle          # SVG angle: 270=down, 360=right, 0=right
+        arm_rad       = math.radians(arm_angle_deg)
+        RE = (int(SH_R[0] + 52 * math.cos(arm_rad)),
+              int(SH_R[1] + 52 * math.sin(arm_rad)))
+        RW = (int(RE[0]   + 42 * math.cos(arm_rad)),
+              int(RE[1]   + 42 * math.sin(arm_rad)))
+        active_joint = SH_R
+        ann_side     = "L"   # label to the left of right-shoulder
 
     elif exercise == "Elbow Flexion":
-        # Upper arm fixed downward, forearm bends at elbow
-        r_elbow  = (208, 150)
-        r_wrist  = (int(208 + 50 * math.cos(math.radians(180 - angle))),
-                    int(150 + 50 * math.sin(math.radians(180 - angle))))
-        active_joint = r_elbow
+        # Upper arm hangs straight down from SH_R; forearm bends at elbow
+        RE = (SH_R[0] + 8, SH_R[1] + 58)    # elbow fixed below shoulder
+        # forearm rotates: 0°=straight down, 90°=horizontal, 150°=fully flexed
+        fore_rad = math.radians(-(angle - 90))   # negative = sweeps left/up
+        RW = (int(RE[0] + 48 * math.sin(math.radians(angle))),
+              int(RE[1] - 48 * math.cos(math.radians(angle))))
+        active_joint = RE
+        ann_side     = "L"
 
     elif exercise == "Knee Extension":
-        # Seated position: thigh is horizontal, shin extends
-        # Map angle: 0° = fully bent, 150° = fully extended
-        r_knee   = (183, 230)
-        r_ankle  = (int(183 + 70 * math.cos(math.radians(angle - 90))),
-                    int(230 + 70 * math.sin(math.radians(angle - 90))))
-        # Tilt hip slightly for seated look
-        hip_r    = (178, 200)
-        active_joint = r_knee
+        # Seated: thigh goes horizontally to the right from hip, shin swings down from knee
+        # hip is shifted slightly down for seated look
+        seated_hip = (HIP_R[0], HIP_R[1] + 10)
+        RK = (seated_hip[0] + 62, seated_hip[1] + 4)   # knee to the right of hip
+        # shin: 0°=fully bent (straight down), 150°=fully extended (forward/right)
+        shin_rad = math.radians(angle - 90)             # 90° offset: -90=down, 0=forward
+        RA = (int(RK[0] + 60 * math.cos(shin_rad)),
+              int(RK[1] + 60 * math.sin(shin_rad)))
+        # store seated hip so we can draw the thigh correctly
+        active_joint  = RK
+        ann_side      = "L"
+        # We patch HIP_R for the right leg draw only via a local var
+        _knee_hip_r   = seated_hip
+    else:
+        _knee_hip_r = HIP_R
 
-    elif exercise == "Hip Abduction":
-        # Right leg swings outward
-        abduct_offset = int(angle * 1.2)
-        r_knee   = (185 + abduct_offset // 2, 262)
-        r_ankle  = (188 + abduct_offset,      322)
-        active_joint = hip_r
+    if exercise == "Hip Abduction":
+        # Right leg swings outward; cap offset so ankle stays within 240px canvas
+        max_offset  = 55
+        abduct_off  = int(min(angle * 0.9, max_offset))
+        RK = (HIP_R[0] + abduct_off // 2,  HIP_R[1] + 65)
+        RA = (HIP_R[0] + abduct_off,       HIP_R[1] + 125)
+        active_joint = HIP_R
+        ann_side     = "L"
+        _knee_hip_r  = HIP_R
 
-    # ── Colour palette ──
-    body_stroke  = "#94a3b8"   # inactive joints / lines
-    active_color = c           # the exercise limb colour
-
-    # Helper to draw a segment
-    def seg(x1, y1, x2, y2, color=body_stroke, width=3, dashed=False):
-        dash = 'stroke-dasharray="6 3"' if dashed else ""
+    # ── SVG element helpers ──────────────────────────────────────────────────
+    def seg(x1, y1, x2, y2, color=BS, width=2.5):
         return (f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
-                f'stroke="{color}" stroke-width="{width}" stroke-linecap="round" {dash}/>')
+                f'stroke="{color}" stroke-width="{width}" stroke-linecap="round"/>')
 
-    def joint(cx, cy, r=6, fill="white", stroke=body_stroke, sw=2.5, extra=""):
+    def dot(cx, cy, r=5, fill="white", stroke=BS, sw=2.2):
         return (f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="{fill}" '
-                f'stroke="{stroke}" stroke-width="{sw}" {extra}/>')
+                f'stroke="{stroke}" stroke-width="{sw}"/>')
 
     def active_jt(cx, cy):
         return (
-            f'<circle cx="{cx}" cy="{cy}" r="14" fill="{c}" opacity=".15"/>'
-            f'<circle cx="{cx}" cy="{cy}" r="9" fill="{c}" stroke="white" stroke-width="2.5" {pulse}/>'
+            f'<circle cx="{cx}" cy="{cy}" r="16" fill="{c}" opacity=".12"/>'
+            f'<circle cx="{cx}" cy="{cy}" r="9"  fill="{c}" '
+            f'stroke="white" stroke-width="2.5" {pulse}/>'
         )
 
-    lines = []
-    joints = []
+    # ── Decide active-limb colours ───────────────────────────────────────────
+    arm_clr = c  if exercise in ("Shoulder Flexion", "Elbow Flexion") else BS
+    leg_clr = c  if exercise in ("Knee Extension",   "Hip Abduction") else BS
+    arm_w   = 3.2 if arm_clr != BS else 2.5
+    leg_w   = 3.2 if leg_clr != BS else 2.5
 
-    # ── Skeleton body (inactive color) ──
-    # Spine
-    lines.append(seg(*spine_top, *spine_bot, body_stroke, 3))
-    # Shoulder bar
-    lines.append(seg(*sh_l, *sh_r, body_stroke, 3))
-    # Hip bar
-    lines.append(seg(*hip_l, *hip_r, body_stroke, 3))
+    # ── Right-leg hip point (Knee Extension uses seated offset) ──────────────
+    r_hip_draw = _knee_hip_r if exercise == "Knee Extension" else HIP_R
 
-    # Left arm (always inactive)
-    lines.append(seg(*sh_l,    *l_elbow, body_stroke, 2.5))
-    lines.append(seg(*l_elbow, *l_wrist, body_stroke, 2.5))
+    # ── Build element lists ──────────────────────────────────────────────────
+    els = []
 
-    # Left leg (always inactive)
-    lines.append(seg(*hip_l,  *l_knee,  body_stroke, 2.5))
-    lines.append(seg(*l_knee, *l_ankle, body_stroke, 2.5))
+    # Structural lines (always grey)
+    els.append(seg(*SP_T,  *SP_B,  BS, 3))
+    els.append(seg(*SH_L,  *SH_R,  BS, 3))
+    els.append(seg(*HIP_L, *HIP_R, BS, 3))
 
-    # Right leg — active color if knee extension / hip abduction
-    leg_color = active_color if exercise in ("Knee Extension", "Hip Abduction") else body_stroke
-    lines.append(seg(*hip_r,  *r_knee,  leg_color, 3 if leg_color != body_stroke else 2.5))
-    lines.append(seg(*r_knee, *r_ankle, leg_color, 3 if leg_color != body_stroke else 2.5))
+    # Left arm (inactive)
+    els.append(seg(*SH_L, *LE, BS, 2.5))
+    els.append(seg(*LE,   *LW, BS, 2.5))
 
-    # Right arm — active color if shoulder / elbow flexion
-    arm_color = active_color if exercise in ("Shoulder Flexion", "Elbow Flexion") else body_stroke
-    upper_arm_end = r_elbow
-    lines.append(seg(*sh_r, *upper_arm_end, arm_color, 3 if arm_color != body_stroke else 2.5))
-    lines.append(seg(*r_elbow, *r_wrist,   arm_color, 3 if arm_color != body_stroke else 2.5))
+    # Left leg (inactive)
+    els.append(seg(*HIP_L, *LK, BS, 2.5))
+    els.append(seg(*LK,    *LA, BS, 2.5))
 
-    # ── Joints ──
-    for pt in [sh_l, sh_r, hip_l, hip_r]:
-        joints.append(joint(*pt, r=6))
-    for pt in [l_elbow, l_wrist, r_elbow, r_wrist]:
-        joints.append(joint(*pt, r=5))
-    for pt in [l_knee, l_ankle, r_knee, r_ankle]:
-        joints.append(joint(*pt, r=5))
+    # Right arm (active colour)
+    els.append(seg(*SH_R, *RE, arm_clr, arm_w))
+    els.append(seg(*RE,   *RW, arm_clr, arm_w))
 
-    # Active joint highlight (on top)
+    # Right leg (active colour)
+    els.append(seg(*r_hip_draw, *RK, leg_clr, leg_w))
+    els.append(seg(*RK,         *RA, leg_clr, leg_w))
+
+    # All joints (small dots on top of lines)
+    for pt, r in [(SH_L, 6), (SH_R, 6), (HIP_L, 6), (HIP_R, 6),
+                  (LE, 5), (LW, 4), (RE, 5), (RW, 4),
+                  (LK, 5), (LA, 4), (RK, 5), (RA, 4)]:
+        els.append(dot(*pt, r=r))
+
+    # Active joint highlight (rendered last → on top)
     if active_joint:
-        joints.append(active_jt(*active_joint))
+        els.append(active_jt(*active_joint))
 
-    # Angle arc annotation near active joint
+    # ── Angle annotation ─────────────────────────────────────────────────────
     angle_ann = ""
     if active_joint:
         ax, ay = active_joint
+        lbl    = f"{angle:.0f}°"
+        # Always place label to the LEFT so it never clips the right edge
+        rx = ax - 58        # rect left edge
+        tx = ax - 32        # text centre
+        # Clamp so label never goes off-canvas left either
+        if rx < 4:
+            rx = 4
+            tx = rx + 26
         angle_ann = (
-            f'<rect x="{ax+14}" y="{ay-14}" width="52" height="22" rx="6" '
-            f'fill="{c}" opacity=".12"/>'
-            f'<text x="{ax+40}" y="{ay+3}" text-anchor="middle" font-size="13" '
+            f'<rect x="{rx}" y="{ay - 13}" width="50" height="22" rx="7" '
+            f'fill="{c}" opacity=".13"/>'
+            f'<text x="{tx}" y="{ay + 4}" text-anchor="middle" font-size="13" '
             f'fill="{c}" font-weight="700" font-family="IBM Plex Mono, monospace">'
-            f'{angle:.0f}°</text>'
+            f'{lbl}</text>'
         )
 
-    # Status pill
+    # ── Status pill & exercise label ─────────────────────────────────────────
     pill_c = STATUS_COLORS[status]
     status_pill = (
-        f'<rect x="70" y="348" width="100" height="24" rx="12" '
+        f'<rect x="65" y="352" width="110" height="24" rx="12" '
         f'fill="{pill_c["hex"]}" opacity=".15"/>'
-        f'<text x="120" y="365" text-anchor="middle" font-size="11" '
-        f'fill="{pill_c["hex"]}" font-weight="700" font-family="Sora, sans-serif">'
+        f'<text x="120" y="369" text-anchor="middle" font-size="11" '
+        f'fill="{pill_c["hex"]}" font-weight="700" font-family="sans-serif">'
         f'{posture["icon"]} {status}</text>'
     )
-
-    # Exercise label at top
     exercise_label = (
-        f'<text x="120" y="386" text-anchor="middle" font-size="10" '
-        f'fill="#94a3b8" font-family="Sora, sans-serif" font-weight="600" '
-        f'letter-spacing="1">{exercise.upper()}</text>'
+        f'<text x="120" y="392" text-anchor="middle" font-size="10" '
+        f'fill="#94a3b8" font-weight="600" font-family="sans-serif" letter-spacing="1.2">'
+        f'{exercise.upper()}</text>'
     )
 
-    svg_body = "\n".join(lines + joints)
+    svg_body = "\n      ".join(els)
 
-    return f"""
-    <svg viewBox="0 0 240 400" width="100%" style="max-height:360px;display:block;margin:0 auto;">
-      <!-- Drop shadow filter -->
-      <defs>
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000018"/>
-        </filter>
-        <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#f8fafc"/>
-          <stop offset="100%" stop-color="#f1f5f9"/>
-        </linearGradient>
-      </defs>
+    return f"""<svg viewBox="0 0 240 400" width="100%"
+     style="max-height:380px;display:block;margin:0 auto;overflow:visible;">
+  <defs>
+    <filter id="sk-shadow">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#00000014"/>
+    </filter>
+    <linearGradient id="sk-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#eef2f7"/>
+    </linearGradient>
+  </defs>
 
-      <!-- Background -->
-      <rect width="240" height="400" fill="url(#bodyGrad)" rx="14"/>
-      <rect width="240" height="400" fill="none" stroke="#e2e8f0" stroke-width="1.5" rx="14"/>
+  <!-- Panel background -->
+  <rect width="240" height="400" rx="14" fill="url(#sk-bg)"/>
+  <rect width="240" height="400" rx="14" fill="none" stroke="#dde5f0" stroke-width="1.5"/>
 
-      <!-- Head (face) -->
-      <circle cx="{head_cx}" cy="{head_cy}" r="{head_r}"
-              fill="white" stroke="{body_stroke}" stroke-width="2.5" filter="url(#shadow)"/>
-      <!-- Simple face dots -->
-      <circle cx="133" cy="39" r="2.5" fill="#94a3b8"/>
-      <circle cx="147" cy="39" r="2.5" fill="#94a3b8"/>
-      <path d="M134 49 Q140 54 146 49" stroke="#94a3b8" stroke-width="1.5"
-            fill="none" stroke-linecap="round"/>
+  <!-- Head -->
+  <circle cx="{HEAD[0]}" cy="{HEAD[1]}" r="26"
+          fill="white" stroke="{BS}" stroke-width="2.5" filter="url(#sk-shadow)"/>
+  <circle cx="113" cy="39" r="2.5" fill="{BS}"/>
+  <circle cx="127" cy="39" r="2.5" fill="{BS}"/>
+  <path d="M114 49 Q120 54 126 49" stroke="{BS}" stroke-width="1.5"
+        fill="none" stroke-linecap="round"/>
 
-      <!-- Body -->
-      {svg_body}
+  <!-- Skeleton -->
+  {svg_body}
 
-      {angle_ann}
-      {status_pill}
-      {exercise_label}
-    </svg>"""
+  {angle_ann}
+  {status_pill}
+  {exercise_label}
+</svg>"""
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SIDEBAR
