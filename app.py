@@ -21,9 +21,10 @@ import streamlit.components.v1 as components
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="RehabAI",
+    page_title="RehabAI · Recovery Intelligence",
+    page_icon="🏥",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
@@ -108,7 +109,7 @@ html, body, [data-testid="stAppViewContainer"] {
     letter-spacing: .04em;
 }
 
-#MainMenu, header, footer { visibility: hidden; }
+#MainMenu,  footer { visibility: hidden; }
 
 .top-bar {
     background: linear-gradient(120deg, #1347b0 0%, #0284c7 100%);
@@ -388,6 +389,22 @@ html, body, [data-testid="stAppViewContainer"] {
 """,
     unsafe_allow_html=True,
 )
+st.markdown("""
+<style>
+/* ให้ปุ่มเปิด/ปิด sidebar โชว์เสมอ */
+[data-testid="collapsedControl"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 99999 !important;
+}
+
+/* กันไม่ให้ element อื่นบังปุ่ม */
+header {
+    visibility: visible !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SESSION STATE INIT
